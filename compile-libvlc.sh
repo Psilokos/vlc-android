@@ -284,18 +284,18 @@ REL=$(grep -o '^Pkg.Revision.*[0-9]*.*' $ANDROID_NDK/source.properties |cut -d "
 # NDK 15 and after drops support for old android platforms (bellow
 # ANDROID_API=14) but these platforms are still supported by VLC 3.0.
 # TODO: Switch to NDK 15 when we drop support for old android plaftorms (for VLC 4.0)
-if [ "$REL" -eq 14 ]; then
+if [ "$REL" -eq 17 ]; then
     if [ "${HAVE_64}" = 1 ];then
         ANDROID_API=21
     else
-        ANDROID_API=9
+        ANDROID_API=17
     fi
 else
-    echo "NDK v14 needed, cf. https://developer.android.com/ndk/downloads/older_releases.html#ndk-14-downloads"
+    echo "NDK v17 needed, cf. https://developer.android.com/ndk/downloads/older_releases.html#ndk-14-downloads"
     exit 1
 fi
 
-NDK_FORCE_ARG=
+NDK_FORCE_ARG="--force"
 NDK_TOOLCHAIN_DIR=${PWD}/toolchains/${PLATFORM_SHORT_ARCH}
 NDK_TOOLCHAIN_PROPS=${NDK_TOOLCHAIN_DIR}/source.properties
 NDK_TOOLCHAIN_PATH=${NDK_TOOLCHAIN_DIR}/bin
@@ -564,11 +564,14 @@ if [ "${CHROME_OS}" = "1" ];then
     export ac_cv_func_pipe2=no
 fi
 
-if [ ${ANDROID_API} = "21" ] ; then
+if [ ${ANDROID_API} -gt "16" ] ; then
     # android-21 has empty sys/shm.h headers that triggers shm detection but it
     # doesn't have any shm functions and/or symbols. */
     export ac_cv_header_sys_shm_h=no
-else
+    # New unified SDK has DVB
+    export ac_cv_linux_dvb_5_1=no
+fi
+if [ ${ANDROID_API} -lt "21" ] ; then
     # force nanf and uselocale using libandroid_support since it's present in libc++
     export ac_cv_lib_m_nanf=yes
     export ac_cv_func_uselocale=yes
