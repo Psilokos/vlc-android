@@ -21,6 +21,7 @@ MEDIALIBRARY_HASH=082216a
 BUILD_ML=1
 RELEASE=0
 ASAN=0
+NDKVER=14
 while [ $# -gt 0 ]; do
     case $1 in
         help|--help)
@@ -38,6 +39,9 @@ while [ $# -gt 0 ]; do
         --asan)
             ASAN=1
             ;;
+        --ndkver)
+            NDKVER=$2
+            ;;
         --no-ml)
             BUILD_ML=0
             ;;
@@ -47,6 +51,8 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+ANDROID_NDK=$ANDROID_NDK$NDKVER
 
 if [ -z "$ANDROID_NDK" ]; then
     echo "Please set the ANDROID_NDK environment variable with its path."
@@ -284,11 +290,15 @@ REL=$(grep -o '^Pkg.Revision.*[0-9]*.*' $ANDROID_NDK/source.properties |cut -d "
 # NDK 15 and after drops support for old android platforms (bellow
 # ANDROID_API=14) but these platforms are still supported by VLC 3.0.
 # TODO: Switch to NDK 15 when we drop support for old android plaftorms (for VLC 4.0)
-if [ "$REL" -eq 17 ]; then
-    if [ "${HAVE_64}" = 1 ];then
-        ANDROID_API=21
+if [ "$REL" -eq $NDKVER ]; then
+    if [ "${HAVE_64}" = 1 ]; then
+            ANDROID_API=21
     else
-        ANDROID_API=17
+        if [ $NDKVER = 14 ]; then
+            ANDROID_API=9
+        elif [ $NDKVER = 17 ]; then
+            ANDROID_API=17
+        fi
     fi
 else
     echo "NDK v17 needed, cf. https://developer.android.com/ndk/downloads/older_releases.html#ndk-14-downloads"
@@ -414,6 +424,8 @@ fi
 NDK_LIB_DIR="${NDK_TOOLCHAIN_DIR}/${TARGET_TUPLE}/lib"
 if [ "${PLATFORM_SHORT_ARCH}" = "x86_64" -o "${PLATFORM_SHORT_ARCH}" = "mips64" ];then
     NDK_LIB_DIR="${NDK_LIB_DIR}64"
+elif [ "${PLATFORM_SHORT_ARCH}" = "arm" ]; then
+    NDK_LIB_DIR="${NDK_LIB_DIR}"/armv7-a
 fi
 
 EXTRA_LDFLAGS="${EXTRA_LDFLAGS} -L${NDK_LIB_DIR} -lc++abi -lc++_static"
@@ -433,21 +445,6 @@ if [ "${ASAN}" = 1 ];then
     VLC_CFLAGS="${VLC_CFLAGS} -O0 -fno-omit-frame-pointer -fsanitize=address"
     VLC_CXXFLAGS="${VLC_CXXFLAGS} -O0 -fno-omit-frame-pointer -fsanitize=address"
     VLC_LDFLAGS="${VLC_LDFLAGS} -ldl -fsanitize=address"
-    # ugly, sorry
-    if [ "${ANDROID_API}" = "9" ];then
-        if [ ! -f vlc/contrib/${TARGET_TUPLE}/include/stdlib.h ]; then
-            mkdir -p vlc/contrib/${TARGET_TUPLE}/include
-            printf "#include_next <stdlib.h>\n"
-                   "#ifdef __cplusplus\n"
-                   "extern \"C\" {\n"
-                   "#endif\n"
-                   "extern int posix_memalign(void **memptr, size_t alignment, size_t size);\n"
-                   "#ifdef __cplusplus\n"
-                   "}\n"
-                   "#endif\n" \
-                > vlc/contrib/${TARGET_TUPLE}/include/stdlib.h
-        fi
-    fi
 fi
 
 echo "EXTRA_CFLAGS:      ${EXTRA_CFLAGS}"
@@ -526,6 +523,7 @@ echo "CXX=${NDK_TOOLCHAIN_PATH}/clang++" >> config.mak
 echo "AR=${NDK_TOOLCHAIN_PATH}/${TARGET_TUPLE}-ar" >> config.mak
 echo "RANLIB=${NDK_TOOLCHAIN_PATH}/${TARGET_TUPLE}-ranlib" >> config.mak
 echo "LD=${NDK_TOOLCHAIN_PATH}/${TARGET_TUPLE}-ld" >> config.mak
+[ ${NDKVER} = 14 ] && echo "LEGACY_NDK=1" >> config.mak
 
 make $MAKEFLAGS fetch
 checkfail "contribs: make fetch failed"
@@ -577,6 +575,10 @@ if [ ${ANDROID_API} -lt "21" ] ; then
     export ac_cv_func_uselocale=yes
 
     VLC_LDFLAGS="${VLC_LDFLAGS} -L${NDK_LIB_DIR} -landroid_support"
+fi
+if [ ${NDKVER} -eq 14 ]; then
+    # legacy mode
+    export ac_cv_android_ndk_legacy=yes
 fi
 
 if [ ! -e ./config.h -o "$RELEASE" = 1 ]; then
@@ -698,18 +700,18 @@ VLC_MODULES=$(find_modules ${REDEFINED_VLC_MODULES_DIR})
 ANDROID_SYS_HEADERS="$SRC_DIR/android-headers"
 VLC_CONTRIB_LDFLAGS=`for i in $(/bin/ls $VLC_CONTRIB/lib/pkgconfig/*.pc); do PKG_CONFIG_PATH="$VLC_CONTRIB/lib/pkgconfig/" pkg-config --libs $i; done |xargs`
 
-if [ "${CHROME_OS}" != "1" ];then
-    if [ "${HAVE_64}" != 1 ];then
-        # Can't link with 32bits symbols.
-        # Not a problem since MediaCodec should work on 64bits devices (android-21)
-        LIBIOMX_LIBS="libiomx.14 libiomx.13 libiomx.10"
-        LIBANW_LIBS="libanw.10 libanw.13 libanw.14 libanw.18"
-    fi
-    # (after android Jelly Bean, we prefer to use MediaCodec instead of iomx)
-    # LIBIOMX_LIBS="${LIBIOMX_LIBS} libiomx.19 libiomx.18"
-
-    LIBANW_LIBS="$LIBANW_LIBS libanw.21"
-fi
+#if [ "${CHROME_OS}" != "1" ];then
+#    if [ "${HAVE_64}" != 1 ];then
+#        # Can't link with 32bits symbols.
+#        # Not a problem since MediaCodec should work on 64bits devices (android-21)
+#        LIBIOMX_LIBS="libiomx.14 libiomx.13 libiomx.10"
+#        LIBANW_LIBS="libanw.10 libanw.13 libanw.14 libanw.18"
+#    fi
+#    # (after android Jelly Bean, we prefer to use MediaCodec instead of iomx)
+#    # LIBIOMX_LIBS="${LIBIOMX_LIBS} libiomx.19 libiomx.18"
+#
+#    LIBANW_LIBS="$LIBANW_LIBS libanw.21"
+#fi
 
 ################
 # MEDIALIBRARY #
@@ -895,18 +897,6 @@ $ANDROID_NDK/ndk-build$OSCMD -C libvlc \
     NDK_TOOLCHAIN_VERSION=clang
 
 checkfail "ndk-build failed for libvlc"
-
-$ANDROID_NDK/ndk-build$OSCMD -C libvlc \
-    VLC_SRC_DIR="$VLC_SRC_DIR" \
-    ANDROID_SYS_HEADERS="$ANDROID_SYS_HEADERS" \
-    LIBIOMX_LIBS="$LIBIOMX_LIBS" \
-    LIBANW_LIBS="$LIBANW_LIBS" \
-    APP_BUILD_SCRIPT=private_libs/Android.mk \
-    APP_PLATFORM=android-${ANDROID_API} \
-    APP_ABI=${ANDROID_ABI} \
-    TARGET_TUPLE=$TARGET_TUPLE \
-    NDK_PROJECT_PATH=private_libs \
-    NDK_TOOLCHAIN_VERSION=clang 2>/dev/null
 
 echo "Dumping dbg symbols info ${OUT_DBG_DIR}"
 
