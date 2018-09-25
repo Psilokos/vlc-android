@@ -245,6 +245,9 @@ elif [ "${ANDROID_ABI}" = "arm64" ] ; then
     ANDROID_ABI="arm64-v8a"
 fi
 
+# try to detect NDK version
+REL=$(grep -o '^Pkg.Revision.*[0-9]*.*' $ANDROID_NDK/source.properties |cut -d " " -f 3 | cut -d "." -f 1)
+
 # Set up ABI variables
 if [ "${ANDROID_ABI}" = "x86" ] ; then
     TARGET_TUPLE="i686-linux-android"
@@ -253,10 +256,10 @@ elif [ "${ANDROID_ABI}" = "x86_64" ] ; then
     TARGET_TUPLE="x86_64-linux-android"
     PLATFORM_SHORT_ARCH="x86_64"
     HAVE_64=1
-elif [ "${ANDROID_ABI}" = "mips" ] ; then
+elif [ "${ANDROID_ABI}" = "mips" ] && [ "$REL" -eq 14 ] ; then
     TARGET_TUPLE="mipsel-linux-android"
     PLATFORM_SHORT_ARCH="mips"
-elif [ "${ANDROID_ABI}" = "mips64" ] ; then
+elif [ "${ANDROID_ABI}" = "mips64" ] && [ "$REL" -eq 14 ] ; then
     TARGET_TUPLE="mips64el-linux-android"
     PLATFORM_SHORT_ARCH="mips64"
     HAVE_64=1
@@ -277,9 +280,6 @@ fi
 SRC_DIR=$PWD
 VLC_SRC_DIR="$SRC_DIR/vlc"
 VLC_CONTRIB="$VLC_SRC_DIR/contrib/$TARGET_TUPLE"
-
-# try to detect NDK version
-REL=$(grep -o '^Pkg.Revision.*[0-9]*.*' $ANDROID_NDK/source.properties |cut -d " " -f 3 | cut -d "." -f 1)
 
 if [ "$REL" -eq 14 ] || [ "$REL" -eq 17 ]; then
     if [ "${HAVE_64}" = 1 ];then
