@@ -281,17 +281,18 @@ VLC_CONTRIB="$VLC_SRC_DIR/contrib/$TARGET_TUPLE"
 # try to detect NDK version
 REL=$(grep -o '^Pkg.Revision.*[0-9]*.*' $ANDROID_NDK/source.properties |cut -d " " -f 3 | cut -d "." -f 1)
 
-# NDK 15 and after drops support for old android platforms (bellow
-# ANDROID_API=14) but these platforms are still supported by VLC 3.0.
-# TODO: Switch to NDK 15 when we drop support for old android plaftorms (for VLC 4.0)
-if [ "$REL" -eq 14 ]; then
+if [ "$REL" -eq 14 ] || [ "$REL" -eq 17 ]; then
     if [ "${HAVE_64}" = 1 ];then
         ANDROID_API=21
     else
-        ANDROID_API=9
+        if [ "$REL" -eq 14 ]; then
+            ANDROID_API=9
+        else
+            ANDROID_API=17
+        fi
     fi
 else
-    echo "NDK v14 needed, cf. https://developer.android.com/ndk/downloads/older_releases.html#ndk-14-downloads"
+    echo "NDK v14 or v17 needed, cf. https://developer.android.com/ndk/downloads/older_releases.html"
     exit 1
 fi
 
@@ -694,7 +695,7 @@ VLC_MODULES=$(find_modules ${REDEFINED_VLC_MODULES_DIR})
 ANDROID_SYS_HEADERS="$SRC_DIR/android-headers"
 VLC_CONTRIB_LDFLAGS=`for i in $(/bin/ls $VLC_CONTRIB/lib/pkgconfig/*.pc); do PKG_CONFIG_PATH="$VLC_CONTRIB/lib/pkgconfig/" pkg-config --libs $i; done |xargs`
 
-if [ "${CHROME_OS}" != "1" ];then
+if [ "$REL" -eq 14 ] && [ "${CHROME_OS}" != "1" ];then
     if [ "${HAVE_64}" != 1 ];then
         # Can't link with 32bits symbols.
         # Not a problem since MediaCodec should work on 64bits devices (android-21)
@@ -892,17 +893,19 @@ $ANDROID_NDK/ndk-build$OSCMD -C libvlc \
 
 checkfail "ndk-build failed for libvlc"
 
-$ANDROID_NDK/ndk-build$OSCMD -C libvlc \
-    VLC_SRC_DIR="$VLC_SRC_DIR" \
-    ANDROID_SYS_HEADERS="$ANDROID_SYS_HEADERS" \
-    LIBIOMX_LIBS="$LIBIOMX_LIBS" \
-    LIBANW_LIBS="$LIBANW_LIBS" \
-    APP_BUILD_SCRIPT=private_libs/Android.mk \
-    APP_PLATFORM=android-${ANDROID_API} \
-    APP_ABI=${ANDROID_ABI} \
-    TARGET_TUPLE=$TARGET_TUPLE \
-    NDK_PROJECT_PATH=private_libs \
-    NDK_TOOLCHAIN_VERSION=clang 2>/dev/null
+if [ "$REL" -eq 14 ]; then
+    $ANDROID_NDK/ndk-build$OSCMD -C libvlc \
+        VLC_SRC_DIR="$VLC_SRC_DIR" \
+        ANDROID_SYS_HEADERS="$ANDROID_SYS_HEADERS" \
+        LIBIOMX_LIBS="$LIBIOMX_LIBS" \
+        LIBANW_LIBS="$LIBANW_LIBS" \
+        APP_BUILD_SCRIPT=private_libs/Android.mk \
+        APP_PLATFORM=android-${ANDROID_API} \
+        APP_ABI=${ANDROID_ABI} \
+        TARGET_TUPLE=$TARGET_TUPLE \
+        NDK_PROJECT_PATH=private_libs \
+        NDK_TOOLCHAIN_VERSION=clang 2>/dev/null
+fi
 
 echo "Dumping dbg symbols info ${OUT_DBG_DIR}"
 
