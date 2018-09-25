@@ -566,10 +566,13 @@ if [ "${CHROME_OS}" = "1" ];then
     export ac_cv_func_pipe2=no
 fi
 
-if [ ${ANDROID_API} = "21" ] ; then
-    # android-21 has empty sys/shm.h headers that triggers shm detection but it
+if [[ "$REL" -eq 14 && ${ANDROID_API} = "21" ]] || [[ "$REL" -eq 17 ]]; then
+    # ndk14 android-21 and ndk17 android APIs < 26 have empty sys/shm.h headers that triggers shm detection but it
     # doesn't have any shm functions and/or symbols. */
     export ac_cv_header_sys_shm_h=no
+fi
+
+if [ ${ANDROID_API} -lt "21" ]; then
     if [ "$REL" -eq 14 ]; then
         # force nanf using libandroid_support since it's present in libc++
         export ac_cv_lib_m_nanf=yes
