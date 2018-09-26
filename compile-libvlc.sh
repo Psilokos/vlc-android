@@ -527,6 +527,7 @@ echo "CXX=${NDK_TOOLCHAIN_PATH}/clang++" >> config.mak
 echo "AR=${NDK_TOOLCHAIN_PATH}/${TARGET_TUPLE}-ar" >> config.mak
 echo "RANLIB=${NDK_TOOLCHAIN_PATH}/${TARGET_TUPLE}-ranlib" >> config.mak
 echo "LD=${NDK_TOOLCHAIN_PATH}/${TARGET_TUPLE}-ld" >> config.mak
+[ "$REL" -eq 14 ] && echo "LEGACY_NDK=1" >> config.mak
 
 make $MAKEFLAGS fetch
 checkfail "contribs: make fetch failed"
