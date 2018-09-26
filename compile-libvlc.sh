@@ -580,6 +580,11 @@ if [ ${ANDROID_API} = "21" ] ; then
     VLC_LDFLAGS="${VLC_LDFLAGS} -L${NDK_LIB_DIR} -landroid_support"
 fi
 
+# always use fixups for search.h
+export ac_cv_header_search_h=no
+# always use compat for tree functions
+export ac_cv_func_tfind=no
+
 if [ ! -e ./config.h -o "$RELEASE" = 1 ]; then
 CFLAGS="${VLC_CFLAGS} ${EXTRA_CFLAGS}" \
 CXXFLAGS="${VLC_CXXFLAGS} ${EXTRA_CFLAGS} ${EXTRA_CXXFLAGS}" \
